@@ -1,0 +1,84 @@
+version: '3.9'
+services:
+  api:
+    build: .
+    image: couplestory-api:latest
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      # Defaults assume postgres/redis run as part of this same compose stack. Override
+      # DB_HOST/DB_PORT (and REDIS_HOST/PORT) in .env to point at an external instance
+      # instead - e.g. a Postgres reachable over a private network/VPN.
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:8091}
+      - UPLOADS_DIR=/app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      # postgres is NOT listed here: DB_HOST may point at an external database (see
+      # above), in which case the bundled postgres service below is unused - api
+      # shouldn't wait on a container it might not even be talking to. If you ARE
+      # using the bundled postgres, docker compose still starts it; api's own retrying
+      # DB connection pool (HikariCP) covers the ordering in that case.
+    healthcheck:
+      # NEEDS RUNTIME VERIFICATION ON UBUNTU: relies on BusyBox's wget, which ships in
+      # eclipse-temurin:17-jre-alpine by default (unlike curl, which is not installed).
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8087/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # NOTE: Redis is provisioned but not currently used by any code path (no
+  # RedisTemplate/@Cacheable/session store anywhere in com.couplestory - confirmed by
+  # repo-wide search). It is kept because LoginRateLimiter's own docs call it out as the
+  # natural backing store if the API is ever scaled to multiple instances. Until that
+  # happens, this container costs resources for no functional benefit - safe to remove
+  # if that scaling need doesn't materialize; needs a product/ops decision, not assumed.
+  #
+  # Only needed if you're running Postgres as part of THIS compose stack (i.e. you did
+  # not point DB_HOST at an external database in .env). Comment this whole service out
+  # if you're using an external Postgres exclusively.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    expose: ["5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: couplestory
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    expose: ["6379"]
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:

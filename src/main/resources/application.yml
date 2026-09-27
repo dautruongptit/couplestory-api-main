@@ -1,0 +1,102 @@
+spring:
+  application:
+    name: couplestory-api
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/couplestory
+    username: ${DB_USER:postgres}
+    # No fallback: this file is the production/default profile. A deployment that
+    # forgets to set DB_PASSWORD must fail to start, not silently connect with a
+    # guessable default.
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # Schema is owned by Flyway migrations (src/main/resources/db/migration)
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: ${MAIL_HOST:smtp.example.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  port: 8087
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health - actuator has many endpoints (env, beans, configprops, ...) that
+        # would leak internal/sensitive detail if exposed here, and WebSecurityConfig
+        # permits all of /actuator/** unauthenticated.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # Mail is not an implemented feature (no JavaMailSender is ever actually used - see
+    # application.yml's mail block comment); its auto-added health indicator otherwise
+    # tries to connect to spring.mail.host and drags the whole /health DOWN when that
+    # host doesn't resolve, unrelated to the app's actual health. Confirmed by actually
+    # running the app: GET /actuator/health returned 503 with a
+    # java.net.UnknownHostException: smtp.example.com stack trace before this fix.
+    mail:
+      enabled: false
+    # Same reasoning as mail: nothing in com.couplestory ever uses Redis (no
+    # RedisTemplate/@Cacheable/session store - confirmed by repo-wide search), so an
+    # unreachable Redis must not drag the whole /health DOWN. Confirmed by actually
+    # running the app against the real Ubuntu Postgres: connected fine, but
+    # /actuator/health still reported DOWN from a Redis UnknownHostException, because
+    # REDIS_HOST=redis only resolves inside the docker-compose network this run wasn't
+    # part of.
+    redis:
+      enabled: false
+
+app:
+  # true in any real deployment (HTTPS); overridden to false in application-dev.yml for local HTTP.
+  cookie-secure: ${COOKIE_SECURE:true}
+  # comma-separated list of allowed frontend origins for CORS.
+  cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8091}
+  # Where uploaded photos are written (LocalDiskStorageService). Point this at a
+  # dedicated, backed-up volume/mount in production - there is no redundancy here
+  # (no object storage), so this directory IS the source of truth for user photos.
+  uploads-dir: ${UPLOADS_DIR:uploads}
+
+jwt:
+  # No fallback in this (production/default) profile - a missing JWT_SECRET must stop
+  # the app from starting rather than sign tokens with a guessable value.
+  secret: ${JWT_SECRET}
+  # No refresh token exists (stateless JWT, no session store to revoke against) - the
+  # access token IS the whole session. 15 minutes was too short for a realistic editing
+  # session (StoryEditor has no 401 handling before this change, so users mid-edit hit
+  # confusing generic errors with no clear path back to login). 4 hours covers one
+  # sitting; a stolen cookie is httpOnly + Strict SameSite already, so the wider window
+  # is a deliberate, bounded trade-off, not an oversight.
+  expiration: 14400000 # 4 hours

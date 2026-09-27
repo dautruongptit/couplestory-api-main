@@ -1,0 +1,12 @@
+# Local-debugging convenience only. Copy this file to docker-compose.override.yml
+# (docker compose auto-merges it) to expose Postgres/Redis ports on localhost - e.g. to
+# connect a DB GUI tool. Do NOT do this on the production Ubuntu host: these services
+# have no additional auth beyond their root credentials, and the base docker-compose.yml
+# deliberately does not publish these ports for that reason.
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+  redis:
+    ports:
+      - "6380:6379"

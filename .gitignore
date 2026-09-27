@@ -1,0 +1,18 @@
+target/
+uploads/
+
+# Secrets - never commit real environment values
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Logs
+*.log

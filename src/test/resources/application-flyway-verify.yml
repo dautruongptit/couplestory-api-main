@@ -1,0 +1,36 @@
+# Used only by FlywayMigrationValidationTest. Runs the REAL Flyway migration files
+# (src/main/resources/db/migration) against H2 in PostgreSQL-compatibility mode, then
+# lets Hibernate ddl-auto=validate check the result against the JPA entities. This is
+# a sanity check, not a substitute for running the migration against real PostgreSQL.
+spring:
+  datasource:
+    url: jdbc:h2:mem:flyway-verify;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration-verify
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+
+jwt:
+  secret: dGVzdC1vbmx5LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2R1Y3Rpb24tMTIzNDU2Nzg=
+  expiration: 900000
+
+app:
+  cookie-secure: false
+  cors-allowed-origins: http://localhost:8091

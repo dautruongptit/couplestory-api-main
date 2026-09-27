@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:couplestory-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+  # Flyway migrations target PostgreSQL; the test suite uses H2 + create-drop instead
+  # for speed and isolation. See FlywayMigrationValidationTest for schema-vs-entity
+  # verification of the actual migration files against a Postgres-compatible engine.
+  flyway:
+    enabled: false
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+
+jwt:
+  secret: dGVzdC1vbmx5LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2R1Y3Rpb24tMTIzNDU2Nzg=
+  expiration: 900000
+
+app:
+  cookie-secure: false
+  cors-allowed-origins: http://localhost:8091
