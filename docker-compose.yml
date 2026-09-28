@@ -1,16 +1,13 @@
 version: '3.9'
 services:
-  api:
+  couplestory-api:
     build: .
     image: couplestory-api:latest
+    container_name: couplestory-api
     restart: unless-stopped
     ports:
       - "8087:8087"
     environment:
-      # Postgres is NOT part of this compose stack - it's the shared postgres-main
-      # container (see shared-network below) that other projects on this host also use.
-      # Redis still runs as part of this stack. Override DB_HOST/DB_PORT (and
-      # REDIS_HOST/PORT) in .env if either needs to point elsewhere.
       - DB_HOST=${DB_HOST:-postgres-main}
       - DB_PORT=${DB_PORT:-5432}
       - DB_USER=${DB_USER:-postgres}
@@ -20,55 +17,22 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:8091}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - UPLOADS_DIR=/app/uploads
     volumes:
       - uploads_data:/app/uploads
     networks:
       - shared-network
-    depends_on:
-      redis:
-        condition: service_healthy
-      # postgres-main is NOT listed here: it's an externally-managed shared container
-      # (not part of this compose stack), so api can't depend_on it. api's own
-      # retrying DB connection pool (HikariCP) covers the ordering/availability case.
     healthcheck:
-      # NEEDS RUNTIME VERIFICATION ON UBUNTU: relies on BusyBox's wget, which ships in
-      # eclipse-temurin:17-jre-alpine by default (unlike curl, which is not installed).
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8087/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 30s
 
-  # NOTE: Redis is provisioned but not currently used by any code path (no
-  # RedisTemplate/@Cacheable/session store anywhere in com.couplestory - confirmed by
-  # repo-wide search). It is kept because LoginRateLimiter's own docs call it out as the
-  # natural backing store if the API is ever scaled to multiple instances. Until that
-  # happens, this container costs resources for no functional benefit - safe to remove
-  # if that scaling need doesn't materialize; needs a product/ops decision, not assumed.
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    expose: ["6379"]
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks:
-      - shared-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
 volumes:
-  redis_data:
   uploads_data:
 
 networks:
-  # Pre-existing network shared across other docker-compose stacks (e.g. a reverse
-  # proxy, or another project's containers) so they can reach these services by
-  # container name without publishing ports to the host. Create it once with:
-  #   docker network create shared-network
   shared-network:
     external: true

@@ -1,0 +1,8 @@
+target
+.env
+.git
+.gitignore
+.idea
+*.md
+docker-compose.yml
+uploads
