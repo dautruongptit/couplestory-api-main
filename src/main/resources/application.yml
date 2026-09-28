@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   application:
     name: couplestory-api
 
@@ -88,6 +88,7 @@ app:
   # dedicated, backed-up volume/mount in production - there is no redundancy here
   # (no object storage), so this directory IS the source of truth for user photos.
   uploads-dir: ${UPLOADS_DIR:uploads}
+  google-client-id: ${GOOGLE_CLIENT_ID:}
 
 jwt:
   # No fallback in this (production/default) profile - a missing JWT_SECRET must stop

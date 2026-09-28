@@ -34,7 +34,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void aRouteThatMatchesNoControllerReturns404NotAGeneric500() throws Exception {
         User user = userRepository.save(User.builder()
-                .email("nf-" + UUID.randomUUID() + "@test.com").passwordHash("x").role("USER").build());
+                .email("nf-" + UUID.randomUUID() + "@test.com").passwordHash("x").build());
 
         mockMvc.perform(get("/api/this-route-does-not-exist")
                         .with(SecurityMockMvcRequestPostProcessors.user(UserDetailsImpl.build(user))))

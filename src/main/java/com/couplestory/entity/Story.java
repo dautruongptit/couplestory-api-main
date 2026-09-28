@@ -45,7 +45,7 @@ public class Story {
 
     @Builder.Default
     @Column(name = "plan_type", nullable = false, length = 20)
-    private String planType = "TRIAL";
+    private String planType = "FREE";
 
     @Builder.Default
     @Column(name = "allow_partner_publish", nullable = false)

@@ -18,6 +18,8 @@ import java.util.stream.Collectors;
 public class UserDetailsImpl implements UserDetails {
     private UUID id;
     private String email;
+    private String displayName;
+    private String planType;
     @JsonIgnore
     private String password;
     private Collection<? extends GrantedAuthority> authorities;
@@ -29,6 +31,8 @@ public class UserDetailsImpl implements UserDetails {
         return new UserDetailsImpl(
                 user.getId(),
                 user.getEmail(),
+                user.getDisplayName(),
+                user.getPlanType(),
                 user.getPasswordHash(),
                 authorities);
     }

@@ -60,7 +60,7 @@ public class StoryService {
                 .slug(slug)
                 .title(request.getTitle() != null ? request.getTitle() : request.getCoupleName1() + " & " + request.getCoupleName2())
                 .status("DRAFT")
-                .planType("TRIAL")
+                .planType("FREE")
                 .templateCode(request.getTemplateCode() != null ? request.getTemplateCode() : "minimal-couple")
                 .templateConfig("{}")
                 .coupleName1(request.getCoupleName1())
@@ -128,7 +128,7 @@ public class StoryService {
         Story story = storyAccessService.requireOwnedStory(id, userId);
         story.setStatus("PUBLISHED");
         story.setPublishedAt(OffsetDateTime.now());
-        if ("TRIAL".equals(story.getPlanType())) {
+        if ("FREE".equals(story.getPlanType())) {
             story.setExpiresAt(OffsetDateTime.now().plusDays(7));
         }
         return storyRepository.save(story);

@@ -6,5 +6,7 @@ import java.util.List;
 public class JwtResponse {
     private String id;
     private String email;
+    private String name;
+    private String plan;
     private List<String> roles;
 }

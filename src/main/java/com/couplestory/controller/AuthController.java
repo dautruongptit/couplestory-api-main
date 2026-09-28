@@ -26,9 +26,17 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RestController
@@ -40,12 +48,16 @@ public class AuthController {
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
     private final LoginRateLimiter loginRateLimiter;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.cookie-secure:true}")
     private boolean cookieSecure;
 
     @Value("${jwt.expiration:900000}")
     private long jwtExpirationMs;
+
+    @Value("${app.google-client-id:}")
+    private String googleClientId;
 
     public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository,
                           RoleRepository roleRepository,
@@ -91,7 +103,7 @@ public class AuthController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(new JwtResponse(userDetails.getId().toString(), userDetails.getEmail(), roles));
+                .body(new JwtResponse(userDetails.getId().toString(), userDetails.getEmail(), userDetails.getDisplayName(), userDetails.getPlanType(), roles));
     }
 
     @PostMapping("/logout")
@@ -103,6 +115,96 @@ public class AuthController {
                 .body("Logged out successfully");
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        UserDetailsImpl userDetails = (UserDetailsImpl) auth.getPrincipal();
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new JwtResponse(userDetails.getId().toString(), userDetails.getEmail(), userDetails.getDisplayName(), userDetails.getPlanType(), roles));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> body) {
+        String credential = body.get("credential");
+        if (credential == null || credential.isBlank()) {
+            return ResponseEntity.badRequest().body("Missing credential");
+        }
+        if (googleClientId == null || googleClientId.isBlank()) {
+            return ResponseEntity.status(500).body("Google login is not configured");
+        }
+
+        try {
+            JsonNode payload = verifyGoogleToken(credential);
+            if (payload == null) {
+                return ResponseEntity.status(401).body("Invalid Google token");
+            }
+
+            String email = payload.get("email").asText();
+            String name = payload.has("name") ? payload.get("name").asText() : email.split("@")[0];
+            String aud = payload.get("aud").asText();
+
+            if (!googleClientId.equals(aud)) {
+                return ResponseEntity.status(401).body("Token audience mismatch");
+            }
+
+            User user = userRepository.findByEmail(email).orElse(null);
+            if (user == null) {
+                Role userRole = roleRepository.findByName("USER")
+                        .orElseThrow(() -> new RuntimeException("Default role USER not found"));
+                user = User.builder()
+                        .email(email)
+                        .passwordHash(encoder.encode(java.util.UUID.randomUUID().toString()))
+                        .displayName(name)
+                        .roles(Set.of(userRole))
+                        .build();
+                userRepository.save(user);
+            }
+
+            String jwt = jwtUtils.generateTokenFromEmail(user.getEmail());
+            List<String> roles = user.getRoles().stream()
+                    .map(r -> r.getName())
+                    .collect(Collectors.toList());
+
+            ResponseCookie cookie = ResponseCookie.from("access_token", jwt)
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .path("/")
+                    .maxAge(jwtExpirationMs / 1000)
+                    .sameSite("Strict")
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(new JwtResponse(user.getId().toString(), user.getEmail(), user.getDisplayName(), user.getPlanType(), roles));
+        } catch (Exception e) {
+            log.error("Google login error", e);
+            return ResponseEntity.status(500).body("Google login failed: " + e.getMessage());
+        }
+    }
+
+    private JsonNode verifyGoogleToken(String idToken) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken))
+                .GET()
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            return null;
+        }
+        JsonNode node = objectMapper.readTree(response.body());
+        if (node.has("error_description")) {
+            return null;
+        }
+        return node;
+    }
+
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
@@ -110,10 +212,14 @@ public class AuthController {
         }
         Role userRole = roleRepository.findByName("USER")
                 .orElseThrow(() -> new RuntimeException("Default role USER not found"));
+        String name = signUpRequest.getName();
+        if (name == null || name.isBlank()) {
+            name = signUpRequest.getEmail().split("@")[0];
+        }
         User user = User.builder()
                 .email(signUpRequest.getEmail())
                 .passwordHash(encoder.encode(signUpRequest.getPassword()))
-                .displayName(signUpRequest.getName())
+                .displayName(name)
                 .roles(Set.of(userRole))
                 .build();
         userRepository.save(user);

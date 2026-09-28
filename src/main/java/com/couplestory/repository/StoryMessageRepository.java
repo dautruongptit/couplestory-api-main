@@ -12,6 +12,5 @@ import java.util.UUID;
 public interface StoryMessageRepository extends JpaRepository<StoryMessage, UUID> {
     List<StoryMessage> findByStoryId(UUID storyId);
     List<StoryMessage> findByStoryIdAndType(UUID storyId, String type);
-    Optional<StoryMessage> findByStoryIdAndType(UUID storyId, String type, String id);
     Optional<StoryMessage> findFirstByStoryIdAndType(UUID storyId, String type);
 }

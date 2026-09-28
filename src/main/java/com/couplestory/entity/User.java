@@ -50,6 +50,10 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
+    @Builder.Default
+    @Column(name = "plan_type", nullable = false, length = 20)
+    private String planType = "FREE";
+
     @Column(name = "google_sub")
     private String googleSub;
 
