@@ -66,7 +66,7 @@ public class SeedController {
             .ownerId(user.getId())
             .slug(SlugUtil.toSlug("Bảo Long An Nhiên " + System.currentTimeMillis()))
             .status("PUBLISHED")
-            .planType("PRO")
+            .planType("PLUS")
             .templateCode("eternal-love")
             .templateConfig("{\"theme_color\":\"#ff4d8d\",\"purpose\":\"confession\"}")
             .coupleName1("Bảo Long")
