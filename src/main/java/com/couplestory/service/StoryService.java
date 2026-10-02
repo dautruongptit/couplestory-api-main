@@ -71,8 +71,8 @@ public class StoryService {
                     + " story của gói " + plan + ". Vui lòng xóa story cũ hoặc nâng cấp gói.");
         }
 
-        String type = "LOVE_STORY";
         String templateCode = request.getTemplateCode() != null ? request.getTemplateCode() : "minimal-couple";
+        String type = request.getType() != null ? request.getType() : "LOVE_STORY";
         templateAccessService.requireUsable(templateCode, type, plan);
 
         String baseSlug = SlugUtil.toSlug(request.getSubdomain() != null ? request.getSubdomain() :
@@ -90,7 +90,7 @@ public class StoryService {
                 .templateConfig("{}")
                 .coupleName1(request.getCoupleName1())
                 .coupleName2(request.getCoupleName2())
-                .startDate(request.getStartDate() != null ? LocalDate.parse(request.getStartDate()) : null)
+                .startDate(request.getStartDate() != null && !request.getStartDate().isEmpty() ? LocalDate.parse(request.getStartDate()) : null)
                 .build();
 
         story = storyRepository.save(story);
@@ -126,7 +126,7 @@ public class StoryService {
         Story story = storyAccessService.requireOwnedStory(id, userId);
         if (request.getCoupleName1() != null) story.setCoupleName1(request.getCoupleName1());
         if (request.getCoupleName2() != null) story.setCoupleName2(request.getCoupleName2());
-        if (request.getStartDate() != null) story.setStartDate(LocalDate.parse(request.getStartDate()));
+        if (request.getStartDate() != null && !request.getStartDate().isEmpty()) story.setStartDate(LocalDate.parse(request.getStartDate()));
         if (request.getCoverPhotoId() != null) story.setCoverPhotoId(UUID.fromString(request.getCoverPhotoId()));
         if (request.getSubdomain() != null) {
             String newSlug = SlugUtil.toSlug(request.getSubdomain());

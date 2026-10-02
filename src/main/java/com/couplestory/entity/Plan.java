@@ -37,7 +37,7 @@ public class Plan {
     private String description;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
+    @Column(nullable = false)
     private List<String> features;
 
     @Column(name = "sort_order", nullable = false)

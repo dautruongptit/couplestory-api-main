@@ -73,7 +73,7 @@ public class Story {
 
     @Builder.Default
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "template_config", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "template_config", nullable = false)
     private String templateConfig = "{}";
 
     @Column(name = "owner_transferred_at")

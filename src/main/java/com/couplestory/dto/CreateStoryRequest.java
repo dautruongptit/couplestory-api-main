@@ -16,6 +16,9 @@ public class CreateStoryRequest {
 
     private String startDate; // ISO format yyyy-MM-dd
 
+    @Size(max = 20)
+    private String type; // LOVE_STORY or LOVE_CARD
+
     @Size(max = 50)
     private String templateCode; // e.g. 'eternal-love', 'minimal-couple'
 
