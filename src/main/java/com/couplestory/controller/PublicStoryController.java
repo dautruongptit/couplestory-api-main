@@ -3,6 +3,7 @@ package com.couplestory.controller;
 import com.couplestory.dto.PublicStoryResponse;
 import com.couplestory.entity.*;
 import com.couplestory.repository.*;
+import com.couplestory.service.MusicService;
 import com.couplestory.service.PlanLimitService;
 import com.couplestory.service.StoryService;
 import com.couplestory.service.TemplateAccessService;
@@ -24,6 +25,7 @@ public class PublicStoryController {
     private final FavoriteMomentRepository momentRepo;
     private final TemplateAccessService templateAccessService;
     private final PlanLimitService planLimitService;
+    private final MusicService musicService;
 
     public PublicStoryController(StoryService storyService,
                                  StoryEventRepository eventRepo,
@@ -31,7 +33,8 @@ public class PublicStoryController {
                                  StoryMessageRepository messageRepo,
                                  FavoriteMomentRepository momentRepo,
                                  TemplateAccessService templateAccessService,
-                                 PlanLimitService planLimitService) {
+                                 PlanLimitService planLimitService,
+                                 MusicService musicService) {
         this.storyService = storyService;
         this.eventRepo = eventRepo;
         this.photoRepo = photoRepo;
@@ -39,6 +42,7 @@ public class PublicStoryController {
         this.momentRepo = momentRepo;
         this.templateAccessService = templateAccessService;
         this.planLimitService = planLimitService;
+        this.musicService = musicService;
     }
 
     @GetMapping("/story")
@@ -64,11 +68,11 @@ public class PublicStoryController {
         if (story.getCoverPhotoId() != null) {
             coverStorageKey = photos.stream()
                     .filter(p -> p.getId().equals(story.getCoverPhotoId()))
-                    .map(Photo::getStorageKey).findFirst().orElse(null);
+                    .map(Photo::getUrl).findFirst().orElse(null);
         }
 
         Map<UUID, String> photoKeyById = photos.stream()
-                .collect(Collectors.toMap(Photo::getId, Photo::getStorageKey, (a, b) -> a));
+                .collect(Collectors.toMap(Photo::getId, Photo::getUrl, (a, b) -> a));
 
         PublicStoryResponse response = PublicStoryResponse.builder()
                 .id(storyId.toString())
@@ -82,13 +86,16 @@ public class PublicStoryController {
                 .startDate(story.getStartDate() != null ? story.getStartDate().toString() : null)
                 .coverPhotoUrl(coverStorageKey)
                 .showWatermark(planLimitService.plan(story.getOwnerId()).getShowWatermark())
+                .music(musicService.playlist(storyId).stream().map(t -> PublicStoryResponse.MusicDto.builder()
+                        .id(t.getId().toString()).title(t.getTitle()).artist(t.getArtist()).url(t.getUrl()).build())
+                        .collect(Collectors.toList()))
                 .events(events.stream().map(e -> PublicStoryResponse.TimelineEventDto.builder()
                         .id(e.getId().toString()).title(e.getTitle()).message(e.getMessage()).location(e.getLocation())
                         .eventDate(e.getEventDate() != null ? e.getEventDate().toString() : null)
                         .photoUrl(e.getPhotoId() != null ? photoKeyById.get(e.getPhotoId()) : null)
                         .order(e.getSortOrder()).build()).collect(Collectors.toList()))
                 .gallery(photos.stream().map(p -> PublicStoryResponse.PhotoDto.builder()
-                        .id(p.getId().toString()).url(p.getStorageKey()).thumbnailUrl(p.getThumbnailKey())
+                        .id(p.getId().toString()).url(p.getUrl()).thumbnailUrl(p.getThumbnailUrl())
                         .order(p.getSortOrder()).build()).collect(Collectors.toList()))
                 .loveLetter(loveLetter != null ? PublicStoryResponse.MessageDto.builder()
                         .id(loveLetter.getId().toString()).heading(loveLetter.getHeading())

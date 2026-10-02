@@ -1,5 +1,6 @@
 package com.couplestory.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -15,6 +16,16 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Photo {
+
+    @JsonProperty("url")
+    public String getUrl() {
+        return filenameStored == null ? null : "/uploads/" + filenameStored;
+    }
+
+    @JsonProperty("thumbnailUrl")
+    public String getThumbnailUrl() {
+        return filenameStored == null ? null : "/uploads/thumb_" + filenameStored;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

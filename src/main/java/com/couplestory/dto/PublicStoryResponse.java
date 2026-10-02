@@ -23,6 +23,7 @@ public class PublicStoryResponse {
     private MessageDto loveLetter;
     private MessageDto finalMessage;
     private List<MomentDto> moments;
+    private List<MusicDto> music;
 
     @Data @Builder
     public static class TimelineEventDto {
@@ -49,6 +50,14 @@ public class PublicStoryResponse {
         private String heading;
         private String content;
         private String signature;
+    }
+
+    @Data @Builder
+    public static class MusicDto {
+        private String id;
+        private String title;
+        private String artist;
+        private String url;
     }
 
     @Data @Builder
