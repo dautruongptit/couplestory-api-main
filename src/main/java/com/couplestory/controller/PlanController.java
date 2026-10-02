@@ -48,6 +48,12 @@ public class PlanController {
         if (update.getSortOrder() != null) plan.setSortOrder(update.getSortOrder());
         if (update.getIsActive() != null) plan.setIsActive(update.getIsActive());
         if (update.getIsFeatured() != null) plan.setIsFeatured(update.getIsFeatured());
+        if (update.getWebsiteDurationDays() != null) plan.setWebsiteDurationDays(update.getWebsiteDurationDays());
+        if (update.getMaxTotalStories() != null) plan.setMaxTotalStories(update.getMaxTotalStories());
+        if (update.getMaxMusicTracks() != null) plan.setMaxMusicTracks(update.getMaxMusicTracks());
+        if (update.getMaxPhotosPerEvent() != null) plan.setMaxPhotosPerEvent(update.getMaxPhotosPerEvent());
+        if (update.getAllowPassword() != null) plan.setAllowPassword(update.getAllowPassword());
+        if (update.getShowWatermark() != null) plan.setShowWatermark(update.getShowWatermark());
         if (update.getMaxPhotos() != null) plan.setMaxPhotos(update.getMaxPhotos());
         if (update.getMaxStories() != null) plan.setMaxStories(update.getMaxStories());
         if (update.getAllowCollaborator() != null) plan.setAllowCollaborator(update.getAllowCollaborator());

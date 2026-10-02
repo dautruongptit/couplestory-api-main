@@ -17,6 +17,7 @@ public class PublicStoryResponse {
     private String shortQuote;
     private String startDate;
     private String coverPhotoUrl;
+    private Boolean showWatermark;
     private List<TimelineEventDto> events;
     private List<PhotoDto> gallery;
     private MessageDto loveLetter;

@@ -3,6 +3,7 @@ package com.couplestory.controller;
 import com.couplestory.dto.PublicStoryResponse;
 import com.couplestory.entity.*;
 import com.couplestory.repository.*;
+import com.couplestory.service.PlanLimitService;
 import com.couplestory.service.StoryService;
 import com.couplestory.service.TemplateAccessService;
 import org.springframework.http.ResponseEntity;
@@ -22,19 +23,22 @@ public class PublicStoryController {
     private final StoryMessageRepository messageRepo;
     private final FavoriteMomentRepository momentRepo;
     private final TemplateAccessService templateAccessService;
+    private final PlanLimitService planLimitService;
 
     public PublicStoryController(StoryService storyService,
                                  StoryEventRepository eventRepo,
                                  PhotoRepository photoRepo,
                                  StoryMessageRepository messageRepo,
                                  FavoriteMomentRepository momentRepo,
-                                 TemplateAccessService templateAccessService) {
+                                 TemplateAccessService templateAccessService,
+                                 PlanLimitService planLimitService) {
         this.storyService = storyService;
         this.eventRepo = eventRepo;
         this.photoRepo = photoRepo;
         this.messageRepo = messageRepo;
         this.momentRepo = momentRepo;
         this.templateAccessService = templateAccessService;
+        this.planLimitService = planLimitService;
     }
 
     @GetMapping("/story")
@@ -77,6 +81,7 @@ public class PublicStoryController {
                 .shortQuote(story.getShortQuote())
                 .startDate(story.getStartDate() != null ? story.getStartDate().toString() : null)
                 .coverPhotoUrl(coverStorageKey)
+                .showWatermark(planLimitService.plan(story.getOwnerId()).getShowWatermark())
                 .events(events.stream().map(e -> PublicStoryResponse.TimelineEventDto.builder()
                         .id(e.getId().toString()).title(e.getTitle()).message(e.getMessage()).location(e.getLocation())
                         .eventDate(e.getEventDate() != null ? e.getEventDate().toString() : null)

@@ -89,6 +89,12 @@ app:
   # (no object storage), so this directory IS the source of truth for user photos.
   uploads-dir: ${UPLOADS_DIR:uploads}
   google-client-id: ${GOOGLE_CLIENT_ID:}
+  # Manual bank-transfer details shown on the payment screen. Leave empty until the real
+  # account is configured in the environment; never commit real account numbers here.
+  payment:
+    bank-name: ${PAYMENT_BANK_NAME:}
+    account-number: ${PAYMENT_ACCOUNT_NUMBER:}
+    account-name: ${PAYMENT_ACCOUNT_NAME:}
 
 jwt:
   # No fallback in this (production/default) profile - a missing JWT_SECRET must stop

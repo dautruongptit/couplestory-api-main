@@ -23,9 +23,13 @@ public class CollaboratorService {
 
     private final StoryCollaboratorRepository collaboratorRepository;
     private final StoryAccessService storyAccessService;
+    private final PlanLimitService planLimitService;
 
     public StoryCollaborator invitePartner(UUID storyId, UUID inviterId, String email) {
         storyAccessService.requireOwnedStory(storyId, inviterId);
+        if (!Boolean.TRUE.equals(planLimitService.plan(inviterId).getAllowCollaborator())) {
+            throw new ForbiddenOperationException("Gói của bạn chưa hỗ trợ mời Partner. Vui lòng nâng cấp lên COUPLE.");
+        }
 
         String rawToken = UUID.randomUUID().toString();
         String tokenHash = sha256(rawToken);

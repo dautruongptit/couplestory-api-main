@@ -66,6 +66,28 @@ public class Plan {
     @Column(name = "allow_custom_domain", nullable = false)
     private Boolean allowCustomDomain = false;
 
+    @Column(name = "website_duration_days")
+    private Integer websiteDurationDays;
+
+    @Column(name = "max_total_stories")
+    private Integer maxTotalStories;
+
+    @Builder.Default
+    @Column(name = "max_music_tracks", nullable = false)
+    private Integer maxMusicTracks = 1;
+
+    @Builder.Default
+    @Column(name = "max_photos_per_event", nullable = false)
+    private Integer maxPhotosPerEvent = 5;
+
+    @Builder.Default
+    @Column(name = "allow_password", nullable = false)
+    private Boolean allowPassword = false;
+
+    @Builder.Default
+    @Column(name = "show_watermark", nullable = false)
+    private Boolean showWatermark = true;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

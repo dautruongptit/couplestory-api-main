@@ -7,11 +7,9 @@ import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.entity.StoryMessage;
 import com.couplestory.exception.ResourceNotFoundException;
-import com.couplestory.repository.PlanRepository;
 import com.couplestory.repository.StoryEventRepository;
 import com.couplestory.repository.StoryMessageRepository;
 import com.couplestory.repository.StoryRepository;
-import com.couplestory.repository.UserRepository;
 import com.couplestory.util.SlugUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,29 +27,24 @@ public class StoryService {
     private final StoryMessageRepository storyMessageRepository;
     private final StoryAccessService storyAccessService;
     private final TemplateAccessService templateAccessService;
-    private final UserRepository userRepository;
-    private final PlanRepository planRepository;
+    private final PlanLimitService planLimitService;
 
     public StoryService(StoryRepository storyRepository,
                         StoryEventRepository storyEventRepository,
                         StoryMessageRepository storyMessageRepository,
                         StoryAccessService storyAccessService,
                         TemplateAccessService templateAccessService,
-                        UserRepository userRepository,
-                        PlanRepository planRepository) {
+                        PlanLimitService planLimitService) {
         this.storyRepository = storyRepository;
         this.storyEventRepository = storyEventRepository;
         this.storyMessageRepository = storyMessageRepository;
         this.storyAccessService = storyAccessService;
         this.templateAccessService = templateAccessService;
-        this.userRepository = userRepository;
-        this.planRepository = planRepository;
+        this.planLimitService = planLimitService;
     }
 
     private String planOf(UUID userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"))
-                .getPlanType();
+        return planLimitService.planCode(userId);
     }
 
     public List<Story> getStoriesByOwnerId(UUID ownerId) {
@@ -65,7 +58,13 @@ public class StoryService {
     @Transactional
     public Story createStory(UUID ownerId, CreateStoryRequest request) {
         String plan = planOf(ownerId);
-        int maxStories = planRepository.findByCode(plan).map(Plan::getMaxStories).orElse(1);
+        Plan planRow = planLimitService.plan(ownerId);
+        int maxStories = planRow.getMaxStories();
+        if (planRow.getMaxTotalStories() != null
+                && storyRepository.countByOwnerId(ownerId) >= planRow.getMaxTotalStories()) {
+            throw new IllegalArgumentException("Bạn đã tạo tối đa " + planRow.getMaxTotalStories()
+                    + " website của gói " + plan + " (tính cả website đã xóa). Vui lòng nâng cấp gói.");
+        }
         long count = storyRepository.countByOwnerIdAndStatusNot(ownerId, "DELETED");
         if (count >= maxStories) {
             throw new IllegalArgumentException("Bạn đã đạt giới hạn " + maxStories
@@ -158,10 +157,17 @@ public class StoryService {
         if (visible < min) {
             throw new IllegalArgumentException("Cần ít nhất " + min + " kỷ niệm hiển thị để xuất bản (hiện có " + visible + ").");
         }
+        OffsetDateTime now = OffsetDateTime.now();
+        if (story.getExpiresAt() != null && !story.getExpiresAt().isAfter(now)) {
+            throw new IllegalArgumentException("Website đã hết hạn. Vui lòng gia hạn để xuất bản lại.");
+        }
+        Plan plan = planLimitService.plan(story.getOwnerId());
         story.setStatus("PUBLISHED");
-        story.setPublishedAt(OffsetDateTime.now());
-        if ("FREE".equals(story.getPlanType())) {
-            story.setExpiresAt(OffsetDateTime.now().plusDays(7));
+        story.setPublishedAt(now);
+        if (plan.getWebsiteDurationDays() == null) {
+            story.setExpiresAt(null);
+        } else if (story.getExpiresAt() == null) {
+            story.setExpiresAt(now.plusDays(plan.getWebsiteDurationDays()));
         }
         return storyRepository.save(story);
     }
@@ -184,6 +190,7 @@ public class StoryService {
 
     public Story getPublicStory(String slug) {
         return storyRepository.findBySlugAndStatus(slug, "PUBLISHED")
+                .filter(s -> s.getExpiresAt() == null || s.getExpiresAt().isAfter(OffsetDateTime.now()))
                 .orElseThrow(() -> new ResourceNotFoundException("Story not found"));
     }
 

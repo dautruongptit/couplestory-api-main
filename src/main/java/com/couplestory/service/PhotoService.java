@@ -27,11 +27,14 @@ public class PhotoService {
     private final PhotoRepository photoRepository;
     private final StorageService storageService;
     private final StoryAccessService storyAccessService;
+    private final PlanLimitService planLimitService;
 
-    public PhotoService(PhotoRepository photoRepository, StorageService storageService, StoryAccessService storyAccessService) {
+    public PhotoService(PhotoRepository photoRepository, StorageService storageService,
+                        StoryAccessService storyAccessService, PlanLimitService planLimitService) {
         this.photoRepository = photoRepository;
         this.storageService = storageService;
         this.storyAccessService = storyAccessService;
+        this.planLimitService = planLimitService;
     }
 
     public List<Photo> getPhotos(String ownerType, UUID storyId, UUID userId) {
@@ -42,6 +45,13 @@ public class PhotoService {
     @Transactional
     public Photo uploadPhoto(String ownerType, UUID storyId, MultipartFile file, UUID userId) {
         storyAccessService.requireOwnedStory(storyId, userId);
+
+        var plan = planLimitService.plan(userId);
+        if (plan.getMaxPhotos() != null
+                && photoRepository.countByOwnerTypeAndOwnerId(ownerType, storyId) >= plan.getMaxPhotos()) {
+            throw new IllegalArgumentException("Gói " + plan.getCode() + " cho tối đa " + plan.getMaxPhotos()
+                    + " ảnh mỗi website. Vui lòng nâng cấp gói để thêm ảnh.");
+        }
 
         String originalFilename = file.getOriginalFilename();
         String extension = extractSafeExtension(originalFilename);
