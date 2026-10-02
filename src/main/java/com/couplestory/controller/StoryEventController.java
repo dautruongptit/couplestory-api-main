@@ -54,6 +54,14 @@ public class StoryEventController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/visibility")
+    public ResponseEntity<List<StoryEvent>> setVisibleEvents(
+            @PathVariable UUID storyId,
+            @RequestBody List<UUID> visibleEventIds,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        return ResponseEntity.ok(eventService.setVisibleEvents(storyId, visibleEventIds, userDetails.getId()));
+    }
+
     @PutMapping("/order")
     public ResponseEntity<Void> reorderEvents(
             @PathVariable UUID storyId,

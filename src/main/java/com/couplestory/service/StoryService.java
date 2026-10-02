@@ -2,13 +2,16 @@ package com.couplestory.service;
 
 import com.couplestory.dto.CreateStoryRequest;
 import com.couplestory.dto.UpdateStoryRequest;
+import com.couplestory.entity.Plan;
 import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.entity.StoryMessage;
 import com.couplestory.exception.ResourceNotFoundException;
+import com.couplestory.repository.PlanRepository;
 import com.couplestory.repository.StoryEventRepository;
 import com.couplestory.repository.StoryMessageRepository;
 import com.couplestory.repository.StoryRepository;
+import com.couplestory.repository.UserRepository;
 import com.couplestory.util.SlugUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,15 +28,30 @@ public class StoryService {
     private final StoryEventRepository storyEventRepository;
     private final StoryMessageRepository storyMessageRepository;
     private final StoryAccessService storyAccessService;
+    private final TemplateAccessService templateAccessService;
+    private final UserRepository userRepository;
+    private final PlanRepository planRepository;
 
     public StoryService(StoryRepository storyRepository,
                         StoryEventRepository storyEventRepository,
                         StoryMessageRepository storyMessageRepository,
-                        StoryAccessService storyAccessService) {
+                        StoryAccessService storyAccessService,
+                        TemplateAccessService templateAccessService,
+                        UserRepository userRepository,
+                        PlanRepository planRepository) {
         this.storyRepository = storyRepository;
         this.storyEventRepository = storyEventRepository;
         this.storyMessageRepository = storyMessageRepository;
         this.storyAccessService = storyAccessService;
+        this.templateAccessService = templateAccessService;
+        this.userRepository = userRepository;
+        this.planRepository = planRepository;
+    }
+
+    private String planOf(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"))
+                .getPlanType();
     }
 
     public List<Story> getStoriesByOwnerId(UUID ownerId) {
@@ -46,10 +64,17 @@ public class StoryService {
 
     @Transactional
     public Story createStory(UUID ownerId, CreateStoryRequest request) {
+        String plan = planOf(ownerId);
+        int maxStories = planRepository.findByCode(plan).map(Plan::getMaxStories).orElse(1);
         long count = storyRepository.countByOwnerIdAndStatusNot(ownerId, "DELETED");
-        if (count >= 3) {
-            throw new RuntimeException("Bạn đã đạt giới hạn tối đa 3 story. Vui lòng xóa story cũ để tạo mới.");
+        if (count >= maxStories) {
+            throw new IllegalArgumentException("Bạn đã đạt giới hạn " + maxStories
+                    + " story của gói " + plan + ". Vui lòng xóa story cũ hoặc nâng cấp gói.");
         }
+
+        String type = "LOVE_STORY";
+        String templateCode = request.getTemplateCode() != null ? request.getTemplateCode() : "minimal-couple";
+        templateAccessService.requireUsable(templateCode, type, plan);
 
         String baseSlug = SlugUtil.toSlug(request.getSubdomain() != null ? request.getSubdomain() :
                 request.getCoupleName1() + " " + request.getCoupleName2());
@@ -60,8 +85,9 @@ public class StoryService {
                 .slug(slug)
                 .title(request.getTitle() != null ? request.getTitle() : request.getCoupleName1() + " & " + request.getCoupleName2())
                 .status("DRAFT")
-                .planType("FREE")
-                .templateCode(request.getTemplateCode() != null ? request.getTemplateCode() : "minimal-couple")
+                .type(type)
+                .planType(plan)
+                .templateCode(templateCode)
                 .templateConfig("{}")
                 .coupleName1(request.getCoupleName1())
                 .coupleName2(request.getCoupleName2())
@@ -77,14 +103,15 @@ public class StoryService {
         storyEventRepository.save(StoryEvent.builder()
                 .storyId(story.getId())
                 .title("Ngày đầu tiên gặp nhau")
-                .eventDate(story.getStartDate() != null ? story.getStartDate() : LocalDate.now())
+                .message("Ngày chúng mình gặp nhau...")
+                .eventDate(story.getStartDate())
                 .sortOrder(0)
                 .build());
 
         storyEventRepository.save(StoryEvent.builder()
                 .storyId(story.getId())
                 .title("Khoảnh khắc đáng nhớ")
-                .eventDate(LocalDate.now())
+                .message("Một khoảnh khắc mình luôn nhớ...")
                 .sortOrder(1)
                 .build());
 
@@ -126,6 +153,11 @@ public class StoryService {
     @Transactional
     public Story publishStory(UUID id, UUID userId) {
         Story story = storyAccessService.requireOwnedStory(id, userId);
+        int min = templateAccessService.minEventsForPublish(story.getTemplateCode());
+        long visible = storyEventRepository.countByStoryIdAndIsVisibleTrue(id);
+        if (visible < min) {
+            throw new IllegalArgumentException("Cần ít nhất " + min + " kỷ niệm hiển thị để xuất bản (hiện có " + visible + ").");
+        }
         story.setStatus("PUBLISHED");
         story.setPublishedAt(OffsetDateTime.now());
         if ("FREE".equals(story.getPlanType())) {
@@ -144,6 +176,7 @@ public class StoryService {
     @Transactional
     public Story switchTemplate(UUID id, String templateCode, UUID userId) {
         Story story = storyAccessService.requireOwnedStory(id, userId);
+        templateAccessService.requireUsable(templateCode, story.getType(), planOf(userId));
         story.setTemplateCode(templateCode);
         story.setTemplateConfig("{}");
         return storyRepository.save(story);

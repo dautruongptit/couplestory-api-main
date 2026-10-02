@@ -25,14 +25,22 @@ public class StoryEvent {
     @Column(name = "story_id", nullable = false)
     private UUID storyId;
 
-    @Column(nullable = false, length = 200)
+    @Column(nullable = false, length = 100)
     private String title;
 
-    @Column(name = "event_date", nullable = false)
+    @Column(name = "event_date")
     private LocalDate eventDate;
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
+    @Builder.Default
+    @Column(nullable = false, length = 500)
+    private String message = "";
+
+    @Column(length = 150)
+    private String location;
+
+    @Builder.Default
+    @Column(name = "is_visible", nullable = false)
+    private Boolean isVisible = true;
 
     @Column(name = "photo_id")
     private UUID photoId;

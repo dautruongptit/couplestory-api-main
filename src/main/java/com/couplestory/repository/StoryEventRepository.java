@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface StoryEventRepository extends JpaRepository<StoryEvent, UUID> {
     List<StoryEvent> findByStoryIdOrderBySortOrderAsc(UUID storyId);
+
+    long countByStoryIdAndIsVisibleTrue(UUID storyId);
 }

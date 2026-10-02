@@ -1,6 +1,7 @@
 package com.couplestory.service;
 
 import com.couplestory.dto.CreateEventRequest;
+import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.exception.ForbiddenOperationException;
 import com.couplestory.exception.ResourceNotFoundException;
@@ -9,17 +10,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class StoryEventService {
     private final StoryEventRepository eventRepository;
     private final StoryAccessService storyAccessService;
+    private final TemplateAccessService templateAccessService;
 
-    public StoryEventService(StoryEventRepository eventRepository, StoryAccessService storyAccessService) {
+    public StoryEventService(StoryEventRepository eventRepository,
+                             StoryAccessService storyAccessService,
+                             TemplateAccessService templateAccessService) {
         this.eventRepository = eventRepository;
         this.storyAccessService = storyAccessService;
+        this.templateAccessService = templateAccessService;
     }
 
     public List<StoryEvent> getEventsByStoryId(UUID storyId, UUID userId) {
@@ -29,17 +36,23 @@ public class StoryEventService {
 
     @Transactional
     public StoryEvent createEvent(UUID storyId, CreateEventRequest request, UUID userId) {
-        storyAccessService.requireOwnedStory(storyId, userId);
-        if (request.getTitle() == null || request.getTitle().isBlank()) {
-            throw new IllegalArgumentException("title is required");
-        }
+        Story story = storyAccessService.requireOwnedStory(storyId, userId);
+        requireText(request.getTitle(), "title");
+        requireText(request.getMessage(), "message");
+
+        // A new event is shown only while the template still has room; extra events are kept hidden.
+        int max = templateAccessService.maxDisplayEvents(story.getTemplateCode());
+        boolean hasRoom = eventRepository.countByStoryIdAndIsVisibleTrue(storyId) < max;
+
         StoryEvent event = StoryEvent.builder()
                 .storyId(storyId)
-                .title(request.getTitle())
-                .description(request.getDescription())
-                .eventDate(request.getEventDate() != null ? LocalDate.parse(request.getEventDate()) : LocalDate.now())
+                .title(request.getTitle().trim())
+                .message(request.getMessage().trim())
+                .location(blankToNull(request.getLocation()))
+                .eventDate(parseDate(request.getEventDate()))
                 .photoId(request.getPhotoId() != null ? UUID.fromString(request.getPhotoId()) : null)
                 .sortOrder(request.getOrder() != null ? request.getOrder() : 0)
+                .isVisible(hasRoom)
                 .build();
         return eventRepository.save(event);
     }
@@ -48,9 +61,16 @@ public class StoryEventService {
     public StoryEvent updateEvent(UUID storyId, UUID eventId, CreateEventRequest request, UUID userId) {
         storyAccessService.requireOwnedStory(storyId, userId);
         StoryEvent event = requireEventInStory(storyId, eventId);
-        if (request.getTitle() != null) event.setTitle(request.getTitle());
-        if (request.getDescription() != null) event.setDescription(request.getDescription());
-        if (request.getEventDate() != null) event.setEventDate(LocalDate.parse(request.getEventDate()));
+        if (request.getTitle() != null) {
+            requireText(request.getTitle(), "title");
+            event.setTitle(request.getTitle().trim());
+        }
+        if (request.getMessage() != null) {
+            requireText(request.getMessage(), "message");
+            event.setMessage(request.getMessage().trim());
+        }
+        if (request.getLocation() != null) event.setLocation(blankToNull(request.getLocation()));
+        if (request.getEventDate() != null) event.setEventDate(parseDate(request.getEventDate()));
         if (request.getPhotoId() != null) event.setPhotoId(UUID.fromString(request.getPhotoId()));
         if (request.getOrder() != null) event.setSortOrder(request.getOrder());
         return eventRepository.save(event);
@@ -73,6 +93,25 @@ public class StoryEventService {
         }
     }
 
+    /** Sets which events the template shows. Events not listed stay in the story but are hidden. */
+    @Transactional
+    public List<StoryEvent> setVisibleEvents(UUID storyId, List<UUID> visibleIds, UUID userId) {
+        Story story = storyAccessService.requireOwnedStory(storyId, userId);
+        int max = templateAccessService.maxDisplayEvents(story.getTemplateCode());
+        Set<UUID> visible = new HashSet<>(visibleIds);
+        if (visible.size() > max) {
+            throw new IllegalArgumentException("Template này hiển thị tối đa " + max + " kỷ niệm.");
+        }
+        List<StoryEvent> events = eventRepository.findByStoryIdOrderBySortOrderAsc(storyId);
+        Set<UUID> known = new HashSet<>();
+        events.forEach(e -> known.add(e.getId()));
+        if (!known.containsAll(visible)) {
+            throw new ForbiddenOperationException("Event does not belong to this story");
+        }
+        events.forEach(e -> e.setIsVisible(visible.contains(e.getId())));
+        return eventRepository.saveAll(events);
+    }
+
     private StoryEvent requireEventInStory(UUID storyId, UUID eventId) {
         StoryEvent event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
@@ -80,5 +119,19 @@ public class StoryEventService {
             throw new ForbiddenOperationException("Event does not belong to this story");
         }
         return event;
+    }
+
+    private static void requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static LocalDate parseDate(String value) {
+        return value == null || value.isBlank() ? null : LocalDate.parse(value);
     }
 }

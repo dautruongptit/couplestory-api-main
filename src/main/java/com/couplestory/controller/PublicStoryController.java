@@ -4,6 +4,7 @@ import com.couplestory.dto.PublicStoryResponse;
 import com.couplestory.entity.*;
 import com.couplestory.repository.*;
 import com.couplestory.service.StoryService;
+import com.couplestory.service.TemplateAccessService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,17 +21,20 @@ public class PublicStoryController {
     private final PhotoRepository photoRepo;
     private final StoryMessageRepository messageRepo;
     private final FavoriteMomentRepository momentRepo;
+    private final TemplateAccessService templateAccessService;
 
     public PublicStoryController(StoryService storyService,
                                  StoryEventRepository eventRepo,
                                  PhotoRepository photoRepo,
                                  StoryMessageRepository messageRepo,
-                                 FavoriteMomentRepository momentRepo) {
+                                 FavoriteMomentRepository momentRepo,
+                                 TemplateAccessService templateAccessService) {
         this.storyService = storyService;
         this.eventRepo = eventRepo;
         this.photoRepo = photoRepo;
         this.messageRepo = messageRepo;
         this.momentRepo = momentRepo;
+        this.templateAccessService = templateAccessService;
     }
 
     @GetMapping("/story")
@@ -38,7 +42,11 @@ public class PublicStoryController {
         Story story = storyService.getPublicStory(slug);
         UUID storyId = story.getId();
 
-        List<StoryEvent> events = eventRepo.findByStoryIdOrderBySortOrderAsc(storyId);
+        int maxEvents = templateAccessService.maxDisplayEvents(story.getTemplateCode());
+        List<StoryEvent> events = eventRepo.findByStoryIdOrderBySortOrderAsc(storyId).stream()
+                .filter(e -> Boolean.TRUE.equals(e.getIsVisible()))
+                .limit(maxEvents)
+                .collect(Collectors.toList());
         List<Photo> photos = photoRepo.findByOwnerTypeAndOwnerIdOrderBySortOrderAsc("STORY", storyId);
         List<StoryMessage> messages = messageRepo.findByStoryId(storyId);
         List<FavoriteMoment> moments = momentRepo.findByStoryIdOrderBySortOrderAsc(storyId);
@@ -70,7 +78,7 @@ public class PublicStoryController {
                 .startDate(story.getStartDate() != null ? story.getStartDate().toString() : null)
                 .coverPhotoUrl(coverStorageKey)
                 .events(events.stream().map(e -> PublicStoryResponse.TimelineEventDto.builder()
-                        .id(e.getId().toString()).title(e.getTitle()).description(e.getDescription())
+                        .id(e.getId().toString()).title(e.getTitle()).message(e.getMessage()).location(e.getLocation())
                         .eventDate(e.getEventDate() != null ? e.getEventDate().toString() : null)
                         .photoUrl(e.getPhotoId() != null ? photoKeyById.get(e.getPhotoId()) : null)
                         .order(e.getSortOrder()).build()).collect(Collectors.toList()))

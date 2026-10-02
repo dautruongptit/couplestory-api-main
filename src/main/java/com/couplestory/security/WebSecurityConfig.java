@@ -107,6 +107,7 @@ public class WebSecurityConfig {
                 auth.requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/public/**").permitAll()
                     .requestMatchers("/api/plans", "/api/plans/**").permitAll()
+                    .requestMatchers("/api/templates").permitAll()
                     .requestMatchers("/uploads/**").permitAll()
                     .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                     .requestMatchers("/actuator/**").permitAll()

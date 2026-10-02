@@ -94,6 +94,7 @@ public class StoryController {
         return StoryResponse.builder()
                 .id(s.getId().toString())
                 .slug(s.getSlug())
+                .type(s.getType())
                 .status(s.getStatus())
                 .planType(s.getPlanType())
                 .templateCode(s.getTemplateCode())

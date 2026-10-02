@@ -8,6 +8,7 @@ import lombok.Data;
 public class StoryResponse {
     private String id;
     private String slug;
+    private String type;
     private String status;
     private String planType;
     private String templateCode;

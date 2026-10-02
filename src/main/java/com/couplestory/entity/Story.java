@@ -44,6 +44,10 @@ public class Story {
     private String status = "DRAFT";
 
     @Builder.Default
+    @Column(nullable = false, length = 20)
+    private String type = "LOVE_STORY";
+
+    @Builder.Default
     @Column(name = "plan_type", nullable = false, length = 20)
     private String planType = "FREE";
 

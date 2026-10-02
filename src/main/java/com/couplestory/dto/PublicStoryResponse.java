@@ -27,7 +27,8 @@ public class PublicStoryResponse {
     public static class TimelineEventDto {
         private String id;
         private String title;
-        private String description;
+        private String message;
+        private String location;
         private String eventDate;
         private String photoUrl;
         private Integer order;
