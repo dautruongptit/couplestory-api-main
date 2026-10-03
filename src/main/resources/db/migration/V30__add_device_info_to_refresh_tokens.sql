@@ -1,0 +1,6 @@
+﻿ALTER TABLE refresh_tokens 
+ADD COLUMN device_name VARCHAR(100),
+ADD COLUMN platform VARCHAR(50),
+ADD COLUMN ip_address VARCHAR(45),
+ADD COLUMN location VARCHAR(100),
+ADD COLUMN last_active_at TIMESTAMPTZ;

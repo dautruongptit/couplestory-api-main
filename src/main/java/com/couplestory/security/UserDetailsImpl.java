@@ -20,6 +20,8 @@ public class UserDetailsImpl implements UserDetails {
     private String email;
     private String displayName;
     private String planType;
+    @lombok.Setter
+    private int tokenVersion;
     @JsonIgnore
     private String password;
     private Collection<? extends GrantedAuthority> authorities;
@@ -33,6 +35,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getPlanType(),
+                user.getTokenVersion(),
                 user.getPasswordHash(),
                 authorities);
     }

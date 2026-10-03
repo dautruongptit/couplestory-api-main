@@ -54,6 +54,27 @@ public class User {
     @Column(name = "plan_type", nullable = false, length = 20)
     private String planType = "FREE";
 
+    @Column(name = "last_login_at")
+    private OffsetDateTime lastLoginAt;
+
+    @Column(name = "last_login_ip", length = 45)
+    private String lastLoginIp;
+
+    @Column(name = "last_login_device", length = 255)
+    private String lastLoginDevice;
+
+    @Builder.Default
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
+    @Builder.Default
+    @Column(name = "successful_login_count", nullable = false)
+    private int successfulLoginCount = 0;
+
+    @Builder.Default
+    @Column(name = "failed_login_count", nullable = false)
+    private int failedLoginCount = 0;
+
     @Column(name = "google_sub")
     private String googleSub;
 

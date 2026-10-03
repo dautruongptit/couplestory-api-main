@@ -2,34 +2,6 @@ spring:
   application:
     name: couplestory-api
 
-  # H2 In-Memory Database (dev/test - no installation needed)
-  datasource:
-    url: jdbc:h2:mem:couplestory;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-        format_sql: true
-    show-sql: true
-
-  # Flyway targets PostgreSQL (see db/migration/V1__baseline_schema.sql) and is not
-  # compatible with H2's dialect/type support (e.g. JSONB). Local dev keeps the fast,
-  # zero-install H2 + create-drop loop; staging/production run the real migrations
-  # against PostgreSQL.
-  flyway:
-    enabled: false
-
   # Redis disabled for local dev
   data:
     redis:

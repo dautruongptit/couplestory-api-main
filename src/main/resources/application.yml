@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: couplestory-api
 
@@ -16,8 +16,20 @@
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false
     show-sql: true
+
+logging:
+  file:
+    name: logs/couplestory.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+  level:
+    root: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
   flyway:
     enabled: true

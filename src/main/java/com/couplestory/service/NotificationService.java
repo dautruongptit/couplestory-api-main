@@ -38,6 +38,14 @@ public class NotificationService {
         notificationRepository.save(notification);
     }
 
+    public void markAllAsRead(UUID userId) {
+        List<Notification> unread = notificationRepository.findByUserIdAndReadFalse(userId);
+        for (Notification n : unread) {
+            n.setRead(true);
+        }
+        notificationRepository.saveAll(unread);
+    }
+
     public Notification createNotification(UUID userId, String title, String content, String type, UUID relatedStoryId) {
         Notification notification = Notification.builder()
                 .userId(userId)

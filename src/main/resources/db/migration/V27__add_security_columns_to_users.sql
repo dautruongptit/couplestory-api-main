@@ -1,0 +1,8 @@
+-- Add security tracking columns to users table
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(45),
+ADD COLUMN IF NOT EXISTS last_login_device VARCHAR(255),
+ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS successful_login_count INT NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS failed_login_count INT NOT NULL DEFAULT 0;

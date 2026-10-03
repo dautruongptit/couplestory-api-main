@@ -36,6 +36,21 @@ public class RefreshToken {
     @Column(name = "rotated_at")
     private OffsetDateTime rotatedAt;
 
+    @Column(name = "device_name", length = 100)
+    private String deviceName;
+
+    @Column(length = 50)
+    private String platform;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(length = 100)
+    private String location;
+
+    @Column(name = "last_active_at")
+    private OffsetDateTime lastActiveAt;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

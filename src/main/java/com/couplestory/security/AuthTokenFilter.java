@@ -30,10 +30,24 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                
+                // Concurrent session control: check token version
+                Integer tokenVersion = jwtUtils.getTokenVersionFromJwtToken(jwt);
+                boolean validVersion = true;
+                if (tokenVersion != null && userDetails instanceof UserDetailsImpl) {
+                    if (tokenVersion < ((UserDetailsImpl) userDetails).getTokenVersion()) {
+                        validVersion = false;
+                        log.debug("JWT token version {} is older than user's current version {}", 
+                                tokenVersion, ((UserDetailsImpl) userDetails).getTokenVersion());
+                    }
+                }
+                
+                if (validVersion) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         } catch (Exception e) {
             log.debug("Cannot set user authentication from JWT: {}", e.getMessage());

@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.couplestory.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Slf4j
@@ -48,6 +49,8 @@ public class AuthController {
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
     private final LoginRateLimiter loginRateLimiter;
+    private final NotificationService notificationService;
+    private final com.couplestory.service.DeviceService deviceService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.cookie-secure:true}")
@@ -61,14 +64,20 @@ public class AuthController {
 
     public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository,
                           RoleRepository roleRepository,
-                          PasswordEncoder encoder, JwtUtils jwtUtils, LoginRateLimiter loginRateLimiter) {
+                          PasswordEncoder encoder, JwtUtils jwtUtils, LoginRateLimiter loginRateLimiter,
+                          NotificationService notificationService,
+                          com.couplestory.service.DeviceService deviceService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.encoder = encoder;
         this.jwtUtils = jwtUtils;
         this.loginRateLimiter = loginRateLimiter;
+        this.notificationService = notificationService;
+        this.deviceService = deviceService;
     }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest httpRequest) {
@@ -81,9 +90,41 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
         } catch (BadCredentialsException e) {
             loginRateLimiter.recordFailure(rateLimitKey);
+            log.warn("Login failed for email: {}, IP: {}", loginRequest.getEmail(), rateLimitKey);
+            
+            userRepository.findByEmail(loginRequest.getEmail()).ifPresent(user -> {
+                user.setFailedLoginCount(user.getFailedLoginCount() + 1);
+                userRepository.save(user);
+            });
             throw e;
         }
         loginRateLimiter.recordSuccess(rateLimitKey);
+        log.info("Login successful for email: {}, IP: {}", loginRequest.getEmail(), rateLimitKey);
+
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        userRepository.findByEmail(loginRequest.getEmail()).ifPresent(user -> {
+            user.setLastLoginAt(java.time.OffsetDateTime.now());
+            user.setLastLoginIp(rateLimitKey);
+            user.setLastLoginDevice(userAgent != null ? (userAgent.length() > 255 ? userAgent.substring(0, 255) : userAgent) : "Unknown");
+            user.setSuccessfulLoginCount(user.getSuccessfulLoginCount() + 1);
+            user.setFailedLoginCount(0); // Reset failed attempts on success
+            user.setTokenVersion(user.getTokenVersion() + 1); // Đẩy session cũ ra
+            userRepository.save(user);
+            
+            // Create a notification for successful login
+            deviceService.recordLogin(user.getId(), userAgent, rateLimitKey, "PASSWORD");
+            notificationService.createNotification(
+                    user.getId(),
+                    "Đăng nhập thành công",
+                    "Tài khoản của bạn vừa được đăng nhập thành công.",
+                    "SYSTEM",
+                    null
+            );
+
+            // Update auth token so the current session uses the new token_version
+            ((UserDetailsImpl) authentication.getPrincipal()).setTokenVersion(user.getTokenVersion());
+        });
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
@@ -130,7 +171,7 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String credential = body.get("credential");
         if (credential == null || credential.isBlank()) {
             return ResponseEntity.badRequest().body("Missing credential");
@@ -170,6 +211,19 @@ public class AuthController {
             List<String> roles = user.getRoles().stream()
                     .map(r -> r.getName())
                     .collect(Collectors.toList());
+
+            // Create a notification for successful login
+            String userAgent = request.getHeader("User-Agent");
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty()) ip = request.getRemoteAddr();
+            deviceService.recordLogin(user.getId(), userAgent, ip, "GOOGLE");
+            notificationService.createNotification(
+                    user.getId(),
+                    "Đăng nhập thành công",
+                    "Tài khoản của bạn vừa được đăng nhập thành công bằng Google.",
+                    "SYSTEM",
+                    null
+            );
 
             ResponseCookie cookie = ResponseCookie.from("access_token", jwt)
                     .httpOnly(true)
