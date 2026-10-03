@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface PhotoRepository extends JpaRepository<Photo, UUID> {
     List<Photo> findByOwnerTypeAndOwnerIdOrderBySortOrderAsc(String ownerType, UUID ownerId);
     long countByOwnerTypeAndOwnerId(String ownerType, UUID ownerId);
+    List<Photo> findByOwnerTypeAndOwnerIdInOrderBySortOrderAsc(String ownerType, java.util.Collection<UUID> ownerIds);
 }

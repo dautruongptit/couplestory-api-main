@@ -19,6 +19,8 @@ public class StoryResponse {
     private String description;
     private String startDate;
     private String coverPhotoId;
+    private String thumbnailUrl;
+    private Integer photoCount;
     private String createdAt;
     private String publishedAt;
     private String expiresAt;

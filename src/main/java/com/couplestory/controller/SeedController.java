@@ -64,7 +64,7 @@ public class SeedController {
 
         Story story = Story.builder()
             .ownerId(user.getId())
-            .slug(SlugUtil.toSlug("Bảo Long An Nhiên " + System.currentTimeMillis()))
+            .slug(uniqueSlug(SlugUtil.toSubdomain(SlugUtil.givenName("Bảo Long") + " " + SlugUtil.givenName("An Nhiên"))))
             .title("Câu Chuyện Của Bảo Long & An Nhiên")
             .status("PUBLISHED")
             .planType("PLUS")
@@ -109,6 +109,14 @@ public class SeedController {
             .build());
 
         return ResponseEntity.ok("Seeded successfully! Story ID: " + storyId);
+    }
+
+    private String uniqueSlug(String base) {
+        String slug = base;
+        for (int i = 1; storyRepo.existsBySlugAndStatusNot(slug, "DELETED"); i++) {
+            slug = base + "-" + i;
+        }
+        return slug;
     }
 
     private Photo createPhoto(UUID storyId, String storageKey, int order, UUID uploadedBy) {

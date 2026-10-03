@@ -12,4 +12,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     List<Notification> findByUserIdOrderByCreatedAtDesc(UUID userId);
     long countByUserIdAndReadFalse(UUID userId);
     List<Notification> findByUserIdAndReadFalse(UUID userId);
+    boolean existsByUserIdAndRelatedStoryIdAndTypeAndTitleAndCreatedAtAfter(UUID userId, UUID relatedStoryId, String type, String title, java.time.OffsetDateTime after);
+    void deleteByUserIdAndRelatedStoryIdAndTypeAndTitleAndCreatedAtAfter(UUID userId, UUID relatedStoryId, String type, String title, java.time.OffsetDateTime after);
 }

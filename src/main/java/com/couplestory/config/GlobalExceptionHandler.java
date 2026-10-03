@@ -3,6 +3,7 @@ package com.couplestory.config;
 import com.couplestory.dto.ErrorResponse;
 import com.couplestory.exception.ForbiddenOperationException;
 import com.couplestory.exception.ResourceNotFoundException;
+import com.couplestory.exception.SlugTakenException;
 import com.couplestory.exception.TooManyRequestsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(new ErrorResponse(409, "Data đã được cập nhật bởi người khác. Vui lòng tải lại."));
+    }
+
+    @ExceptionHandler(SlugTakenException.class)
+    public ResponseEntity<ErrorResponse> handleSlugTaken(SlugTakenException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(new ErrorResponse(409, ex.getMessage()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

@@ -7,6 +7,7 @@ import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.entity.StoryMessage;
 import com.couplestory.exception.ResourceNotFoundException;
+import com.couplestory.exception.SlugTakenException;
 import com.couplestory.repository.StoryEventRepository;
 import com.couplestory.repository.StoryMessageRepository;
 import com.couplestory.repository.StoryRepository;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.Year;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,19 +31,22 @@ public class StoryService {
     private final StoryAccessService storyAccessService;
     private final TemplateAccessService templateAccessService;
     private final PlanLimitService planLimitService;
+    private final NotificationService notificationService;
 
     public StoryService(StoryRepository storyRepository,
                         StoryEventRepository storyEventRepository,
                         StoryMessageRepository storyMessageRepository,
                         StoryAccessService storyAccessService,
                         TemplateAccessService templateAccessService,
-                        PlanLimitService planLimitService) {
+                        PlanLimitService planLimitService,
+                        NotificationService notificationService) {
         this.storyRepository = storyRepository;
         this.storyEventRepository = storyEventRepository;
         this.storyMessageRepository = storyMessageRepository;
         this.storyAccessService = storyAccessService;
         this.templateAccessService = templateAccessService;
         this.planLimitService = planLimitService;
+        this.notificationService = notificationService;
     }
 
     private String planOf(UUID userId) {
@@ -75,9 +81,12 @@ public class StoryService {
         String type = request.getType() != null ? request.getType() : "LOVE_STORY";
         templateAccessService.requireUsable(templateCode, type, plan);
 
-        String baseSlug = SlugUtil.toSlug(request.getSubdomain() != null ? request.getSubdomain() :
-                request.getCoupleName1() + " " + request.getCoupleName2());
-        String slug = generateUniqueSlug(baseSlug);
+        String slug;
+        if (request.getSubdomain() != null && !request.getSubdomain().isBlank()) {
+            slug = requireAvailableSlug(request.getSubdomain(), null);
+        } else {
+            slug = generateUniqueSlug(SlugUtil.givenName(request.getCoupleName1()) + " " + SlugUtil.givenName(request.getCoupleName2()));
+        }
 
         Story story = Story.builder()
                 .ownerId(ownerId)
@@ -128,17 +137,18 @@ public class StoryService {
         if (request.getCoupleName2() != null) story.setCoupleName2(request.getCoupleName2());
         if (request.getStartDate() != null && !request.getStartDate().isEmpty()) story.setStartDate(LocalDate.parse(request.getStartDate()));
         if (request.getCoverPhotoId() != null) story.setCoverPhotoId(UUID.fromString(request.getCoverPhotoId()));
-        if (request.getSubdomain() != null) {
-            String newSlug = SlugUtil.toSlug(request.getSubdomain());
-            Optional<Story> existing = storyRepository.findBySlug(newSlug);
-            if (existing.isPresent() && !existing.get().getId().equals(id)) {
-                throw new RuntimeException("Slug '" + newSlug + "' đã được sử dụng.");
+        if (request.getSubdomain() != null && !request.getSubdomain().isBlank()
+                && !SlugUtil.toSubdomain(request.getSubdomain()).equals(story.getSlug())) {
+            if (!"DRAFT".equals(story.getStatus())) {
+                throw new IllegalArgumentException("Link đã xuất bản nên không thể thay đổi, vì người khác có thể đã lưu link này.");
             }
-            story.setSlug(newSlug);
+            story.setSlug(requireAvailableSlug(request.getSubdomain(), id));
         }
         if (request.getTitle() != null) story.setTitle(request.getTitle());
         if (request.getShortQuote() != null) story.setShortQuote(request.getShortQuote());
-        return storyRepository.save(story);
+        Story saved = storyRepository.save(story);
+        notificationService.notifyStorySaved(userId, saved.getId(), coupleNames(saved));
+        return saved;
     }
 
     @Transactional
@@ -169,7 +179,9 @@ public class StoryService {
         } else if (story.getExpiresAt() == null) {
             story.setExpiresAt(now.plusDays(plan.getWebsiteDurationDays()));
         }
-        return storyRepository.save(story);
+        Story published = storyRepository.save(story);
+        notificationService.notifyStoryPublished(userId, published.getId(), coupleNames(published), published.getSlug());
+        return published;
     }
 
     @Transactional
@@ -194,15 +206,65 @@ public class StoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Story not found"));
     }
 
-    private String generateUniqueSlug(String baseSlug) {
-        if (baseSlug.isEmpty()) baseSlug = "my-love-story";
-        String slug = baseSlug;
-        for (int i = 1; i <= 10; i++) {
-            if (storyRepository.findBySlug(slug).isEmpty()) {
-                return slug;
-            }
-            slug = baseSlug + "-" + i;
+    private static String coupleNames(Story s) {
+        return s.getCoupleName1() + " & " + s.getCoupleName2();
+    }
+
+    public record SlugCheck(String slug, boolean available, String reason, List<String> suggestions) {}
+
+    /** Checks a desired link. A story's own current link counts as available when excludeStoryId is given. */
+    public SlugCheck checkSlug(String raw, UUID excludeStoryId) {
+        String slug = SlugUtil.toSubdomain(raw);
+        String reason = SlugUtil.validate(slug);
+        if (reason == null && isSlugTaken(slug, excludeStoryId)) {
+            reason = "Link này đã có người sử dụng.";
         }
-        throw new RuntimeException("Không thể tạo slug duy nhất. Vui lòng chọn tên khác.");
+        if (reason == null) {
+            return new SlugCheck(slug, true, null, List.of());
+        }
+        return new SlugCheck(slug, false, reason, suggestSlugs(slug, excludeStoryId));
+    }
+
+    private boolean isSlugTaken(String slug, UUID excludeStoryId) {
+        return excludeStoryId == null
+                ? storyRepository.existsBySlugAndStatusNot(slug, "DELETED")
+                : storyRepository.existsBySlugAndStatusNotAndIdNot(slug, "DELETED", excludeStoryId);
+    }
+
+    private String requireAvailableSlug(String raw, UUID excludeStoryId) {
+        String slug = SlugUtil.toSubdomain(raw);
+        String invalid = SlugUtil.validate(slug);
+        if (invalid != null) throw new IllegalArgumentException(invalid);
+        if (isSlugTaken(slug, excludeStoryId)) {
+            throw new SlugTakenException("Link '" + slug + "' đã có người sử dụng. Vui lòng chọn link khác.");
+        }
+        return slug;
+    }
+
+    private List<String> suggestSlugs(String base, UUID excludeStoryId) {
+        if (base.isEmpty()) base = "my-love-story";
+        List<String> candidates = new ArrayList<>();
+        candidates.add(withSuffix(base, String.valueOf(Year.now().getValue())));
+        for (int i = 1; i <= 20; i++) candidates.add(withSuffix(base, String.valueOf(i)));
+        return candidates.stream()
+                .filter(c -> SlugUtil.validate(c) == null && !isSlugTaken(c, excludeStoryId))
+                .limit(3)
+                .toList();
+    }
+
+    private String withSuffix(String base, String suffix) {
+        return SlugUtil.truncate(base, SlugUtil.MAX_LENGTH - suffix.length() - 1) + "-" + suffix;
+    }
+
+    /** Default link from the couple's names; adds -1, -2... when it is taken or not usable. */
+    private String generateUniqueSlug(String names) {
+        String base = SlugUtil.toSubdomain(names);
+        if (base.isEmpty()) base = "my-love-story";
+        if (SlugUtil.validate(base) == null && !isSlugTaken(base, null)) return base;
+        for (int i = 1; i <= 50; i++) {
+            String candidate = withSuffix(base, String.valueOf(i));
+            if (SlugUtil.validate(candidate) == null && !isSlugTaken(candidate, null)) return candidate;
+        }
+        throw new SlugTakenException("Không thể tạo link duy nhất. Vui lòng chọn tên khác.");
     }
 }

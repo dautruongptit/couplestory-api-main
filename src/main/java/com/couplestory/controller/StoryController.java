@@ -3,7 +3,9 @@ package com.couplestory.controller;
 import com.couplestory.dto.CreateStoryRequest;
 import com.couplestory.dto.StoryResponse;
 import com.couplestory.dto.UpdateStoryRequest;
+import com.couplestory.entity.Photo;
 import com.couplestory.entity.Story;
+import com.couplestory.repository.PhotoRepository;
 import com.couplestory.security.UserDetailsImpl;
 import com.couplestory.service.StoryService;
 import jakarta.validation.Valid;
@@ -20,16 +22,30 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/stories")
 public class StoryController {
     private final StoryService storyService;
+    private final PhotoRepository photoRepository;
 
-    public StoryController(StoryService storyService) {
+    public StoryController(StoryService storyService, PhotoRepository photoRepository) {
         this.storyService = storyService;
+        this.photoRepository = photoRepository;
     }
 
     @GetMapping
     public ResponseEntity<List<StoryResponse>> getMyStories(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        List<StoryResponse> stories = storyService.getStoriesByOwnerId(userDetails.getId())
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        List<Story> owned = storyService.getStoriesByOwnerId(userDetails.getId());
+        Map<UUID, List<Photo>> photos = owned.isEmpty() ? Map.of()
+                : photoRepository.findByOwnerTypeAndOwnerIdInOrderBySortOrderAsc("STORY", owned.stream().map(Story::getId).toList())
+                        .stream().collect(Collectors.groupingBy(Photo::getOwnerId));
+        List<StoryResponse> stories = owned.stream()
+                .map(s -> withThumbnail(toResponse(s), s, photos.getOrDefault(s.getId(), List.of())))
+                .collect(Collectors.toList());
         return ResponseEntity.ok(stories);
+    }
+
+    @GetMapping("/slug-check")
+    public ResponseEntity<StoryService.SlugCheck> checkSlug(
+            @RequestParam String slug,
+            @RequestParam(required = false) UUID storyId) {
+        return ResponseEntity.ok(storyService.checkSlug(slug, storyId));
     }
 
     @GetMapping("/{id}")
@@ -88,6 +104,18 @@ public class StoryController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         Story story = storyService.switchTemplate(id, body.get("templateCode"), userDetails.getId());
         return ResponseEntity.ok(toResponse(story));
+    }
+
+    /** Cover photo if set, otherwise a photo picked by the story id so the card keeps the same image on every load. */
+    private StoryResponse withThumbnail(StoryResponse response, Story s, List<Photo> photos) {
+        response.setPhotoCount(photos.size());
+        if (photos.isEmpty()) return response;
+        Photo chosen = photos.stream()
+                .filter(p -> p.getId().equals(s.getCoverPhotoId()))
+                .findFirst()
+                .orElse(photos.get(Math.floorMod(s.getId().hashCode(), photos.size())));
+        response.setThumbnailUrl(chosen.getUrl());
+        return response;
     }
 
     private StoryResponse toResponse(Story s) {
