@@ -2,6 +2,9 @@ spring:
   application:
     name: couplestory-api
 
+  jpa:
+    show-sql: true
+
   # Redis disabled for local dev
   data:
     redis:
@@ -30,6 +33,17 @@ spring:
 
 server:
   port: 8087
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 app:
   cookie-secure: false # local dev runs over plain HTTP

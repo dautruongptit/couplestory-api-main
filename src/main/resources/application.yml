@@ -17,19 +17,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
-    show-sql: true
-
-logging:
-  file:
-    name: logs/couplestory.log
-  logback:
-    rollingpolicy:
-      max-file-size: 10MB
-      max-history: 30
-  level:
-    root: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    show-sql: false # SQL echo is a dev aid, switched on in application-dev.yml
 
   flyway:
     enabled: true
@@ -60,6 +48,26 @@ logging:
 
 server:
   port: 8087
+
+# API docs describe every endpoint to anyone who can reach the server: dev only (see application-dev.yml).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  file:
+    name: logs/couplestory.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+  level:
+    root: INFO
+    # SQL statements and, above all, their bound parameters (emails, hashes, tokens) stay out of
+    # production logs. Dev turns both on in application-dev.yml.
+    org.hibernate.SQL: WARN
 
 management:
   endpoints:
