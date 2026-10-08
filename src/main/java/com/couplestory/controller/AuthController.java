@@ -8,6 +8,7 @@ import com.couplestory.entity.User;
 import com.couplestory.repository.RoleRepository;
 import com.couplestory.repository.UserRepository;
 import com.couplestory.security.JwtUtils;
+import com.couplestory.security.ClientIpResolver;
 import com.couplestory.security.LoginRateLimiter;
 import com.couplestory.security.UserDetailsImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,6 +52,7 @@ public class AuthController {
     private final LoginRateLimiter loginRateLimiter;
     private final NotificationService notificationService;
     private final com.couplestory.service.DeviceService deviceService;
+    private final ClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.cookie-secure:true}")
@@ -66,7 +68,8 @@ public class AuthController {
                           RoleRepository roleRepository,
                           PasswordEncoder encoder, JwtUtils jwtUtils, LoginRateLimiter loginRateLimiter,
                           NotificationService notificationService,
-                          com.couplestory.service.DeviceService deviceService) {
+                          com.couplestory.service.DeviceService deviceService,
+                          ClientIpResolver clientIpResolver) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -75,13 +78,14 @@ public class AuthController {
         this.loginRateLimiter = loginRateLimiter;
         this.notificationService = notificationService;
         this.deviceService = deviceService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest httpRequest) {
-        String rateLimitKey = httpRequest.getRemoteAddr();
+        String rateLimitKey = clientIpResolver.resolve(httpRequest);
         loginRateLimiter.checkAllowed(rateLimitKey);
 
         Authentication authentication;
@@ -217,8 +221,7 @@ public class AuthController {
 
             // Create a notification for successful login
             String userAgent = request.getHeader("User-Agent");
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty()) ip = request.getRemoteAddr();
+            String ip = clientIpResolver.resolve(request);
             deviceService.recordLogin(user.getId(), userAgent, ip, "GOOGLE");
             notificationService.createNotification(
                     user.getId(),
