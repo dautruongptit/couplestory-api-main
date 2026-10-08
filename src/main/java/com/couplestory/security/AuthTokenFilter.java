@@ -46,6 +46,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    // The SecurityContext is cleared when the security chain ends; the API log reads the user here.
+                    request.setAttribute("auth.userId", ((UserDetailsImpl) userDetails).getId());
                 }
             }
         } catch (Exception e) {

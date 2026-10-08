@@ -85,9 +85,18 @@ class SessionVersionTest {
 
     @Test
     void tokenWithCurrentVersionAuthenticates() throws Exception {
-        run(tokenWithVersion(3), 3);
+        MockHttpServletRequest request = run(tokenWithVersion(3), 3);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        // SecurityContext is cleared once the security chain finishes; the API log reads the user from here
+        assertThat(request.getAttribute("auth.userId")).isNotNull();
+    }
+
+    @Test
+    void rejectedTokensDoNotExposeAUserId() throws Exception {
+        MockHttpServletRequest request = run(tokenWithVersion(2), 3);
+
+        assertThat(request.getAttribute("auth.userId")).isNull();
     }
 
     @Test

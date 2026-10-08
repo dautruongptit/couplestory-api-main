@@ -45,6 +45,11 @@ class ProductionConfigTest {
     }
 
     @Test
+    void everyLogLineCarriesTheRequestId() {
+        assertThat(env.getProperty("logging.pattern.level")).contains("requestId");
+    }
+
+    @Test
     void uploadLimitMatchesThePhotoLimit() {
         assertThat(env.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("10MB");
         assertThat(env.getProperty("spring.servlet.multipart.max-request-size")).isEqualTo("12MB");
