@@ -3,6 +3,7 @@ package com.couplestory.service;
 import com.couplestory.dto.CreateStoryRequest;
 import com.couplestory.dto.UpdateStoryRequest;
 import com.couplestory.entity.Plan;
+import com.couplestory.entity.ActivityAction;
 import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.entity.StoryMessage;
@@ -32,6 +33,7 @@ public class StoryService {
     private final TemplateAccessService templateAccessService;
     private final PlanLimitService planLimitService;
     private final NotificationService notificationService;
+    private final UserActivityService activityService;
 
     public StoryService(StoryRepository storyRepository,
                         StoryEventRepository storyEventRepository,
@@ -39,7 +41,8 @@ public class StoryService {
                         StoryAccessService storyAccessService,
                         TemplateAccessService templateAccessService,
                         PlanLimitService planLimitService,
-                        NotificationService notificationService) {
+                        NotificationService notificationService,
+                        UserActivityService activityService) {
         this.storyRepository = storyRepository;
         this.storyEventRepository = storyEventRepository;
         this.storyMessageRepository = storyMessageRepository;
@@ -47,6 +50,7 @@ public class StoryService {
         this.templateAccessService = templateAccessService;
         this.planLimitService = planLimitService;
         this.notificationService = notificationService;
+        this.activityService = activityService;
     }
 
     private String planOf(UUID userId) {
@@ -104,6 +108,7 @@ public class StoryService {
 
         story = storyRepository.save(story);
         seedDefaultData(story);
+        activityService.record(ownerId, ActivityAction.STORY_CREATED, "STORY", story.getId(), "Đã tạo câu chuyện \"" + coupleNames(story) + "\"");
         return story;
     }
 
@@ -148,6 +153,7 @@ public class StoryService {
         if (request.getShortQuote() != null) story.setShortQuote(request.getShortQuote());
         Story saved = storyRepository.save(story);
         notificationService.notifyStorySaved(userId, saved.getId(), coupleNames(saved));
+        activityService.record(userId, ActivityAction.STORY_UPDATED, "STORY", saved.getId(), "Đã cập nhật câu chuyện \"" + coupleNames(saved) + "\"");
         return saved;
     }
 
@@ -157,6 +163,7 @@ public class StoryService {
         story.setStatus("DELETED");
         story.setDeletedAt(OffsetDateTime.now());
         storyRepository.save(story);
+        activityService.record(userId, ActivityAction.STORY_DELETED, "STORY", id, "Đã xóa câu chuyện \"" + coupleNames(story) + "\"");
     }
 
     @Transactional
@@ -181,6 +188,7 @@ public class StoryService {
         }
         Story published = storyRepository.save(story);
         notificationService.notifyStoryPublished(userId, published.getId(), coupleNames(published), published.getSlug());
+        activityService.record(userId, ActivityAction.STORY_PUBLISHED, "STORY", published.getId(), "Đã xuất bản website \"" + coupleNames(published) + "\"");
         return published;
     }
 
@@ -188,7 +196,9 @@ public class StoryService {
     public Story unpublishStory(UUID id, UUID userId) {
         Story story = storyAccessService.requireOwnedStory(id, userId);
         story.setStatus("DRAFT");
-        return storyRepository.save(story);
+        Story saved = storyRepository.save(story);
+        activityService.record(userId, ActivityAction.STORY_UNPUBLISHED, "STORY", saved.getId(), "Đã gỡ website \"" + coupleNames(saved) + "\" về bản nháp");
+        return saved;
     }
 
     @Transactional
@@ -197,7 +207,9 @@ public class StoryService {
         templateAccessService.requireUsable(templateCode, story.getType(), planOf(userId));
         story.setTemplateCode(templateCode);
         story.setTemplateConfig("{}");
-        return storyRepository.save(story);
+        Story saved = storyRepository.save(story);
+        activityService.record(userId, ActivityAction.TEMPLATE_CHANGED, "STORY", saved.getId(), "Đã đổi mẫu giao diện sang \"" + templateCode + "\"");
+        return saved;
     }
 
     public Story getPublicStory(String slug) {

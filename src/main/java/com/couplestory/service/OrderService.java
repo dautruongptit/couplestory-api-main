@@ -1,6 +1,7 @@
 package com.couplestory.service;
 
 import com.couplestory.dto.CreateOrderRequest;
+import com.couplestory.entity.ActivityAction;
 import com.couplestory.entity.Order;
 import com.couplestory.entity.Plan;
 import com.couplestory.entity.Story;
@@ -30,22 +31,28 @@ public class OrderService {
     private final UserRepository userRepository;
     private final StoryRepository storyRepository;
     private final StoryAccessService storyAccessService;
+    private final UserActivityService activityService;
 
     public OrderService(OrderRepository orderRepository, PlanRepository planRepository,
                         UserRepository userRepository, StoryRepository storyRepository,
-                        StoryAccessService storyAccessService) {
+                        StoryAccessService storyAccessService, UserActivityService activityService) {
         this.orderRepository = orderRepository;
         this.planRepository = planRepository;
         this.userRepository = userRepository;
         this.storyRepository = storyRepository;
         this.storyAccessService = storyAccessService;
+        this.activityService = activityService;
     }
 
     @Transactional
     public Order create(UUID userId, CreateOrderRequest request) {
-        if ("UPGRADE".equals(request.getType())) return createUpgrade(userId, request.getPlanCode());
-        if ("RENEW".equals(request.getType())) return createRenewal(userId, request.getStoryId(), request.getTerm());
-        throw new IllegalArgumentException("type must be UPGRADE or RENEW");
+        Order order;
+        if ("UPGRADE".equals(request.getType())) order = createUpgrade(userId, request.getPlanCode());
+        else if ("RENEW".equals(request.getType())) order = createRenewal(userId, request.getStoryId(), request.getTerm());
+        else throw new IllegalArgumentException("type must be UPGRADE or RENEW");
+        // Re-opening a pending order returns the same row; the timeline keeps one entry for it.
+        activityService.record(userId, ActivityAction.ORDER_CREATED, "ORDER", order.getId(), orderSummary("Đã tạo đơn", order));
+        return order;
     }
 
     private Order createUpgrade(UUID userId, String planCode) {
@@ -139,7 +146,15 @@ public class OrderService {
         order.setStatus("PAID");
         order.setPaidAt(OffsetDateTime.now());
         order.setConfirmedBy(adminId);
-        return orderRepository.save(order);
+        Order paid = orderRepository.save(order);
+        activityService.record(paid.getUserId(), ActivityAction.ORDER_PAID, "ORDER", paid.getId(), orderSummary("Đã thanh toán đơn", paid));
+        return paid;
+    }
+
+    private static String orderSummary(String prefix, Order order) {
+        return "UPGRADE".equals(order.getType())
+                ? prefix + " nâng cấp gói " + order.getPlanCode()
+                : prefix + " gia hạn website";
     }
 
     private User requireUser(UUID userId) {

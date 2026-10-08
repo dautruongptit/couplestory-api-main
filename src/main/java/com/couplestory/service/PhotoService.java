@@ -1,5 +1,6 @@
 package com.couplestory.service;
 
+import com.couplestory.entity.ActivityAction;
 import com.couplestory.entity.Photo;
 import com.couplestory.exception.ForbiddenOperationException;
 import com.couplestory.exception.ResourceNotFoundException;
@@ -28,13 +29,16 @@ public class PhotoService {
     private final StorageService storageService;
     private final StoryAccessService storyAccessService;
     private final PlanLimitService planLimitService;
+    private final UserActivityService activityService;
 
     public PhotoService(PhotoRepository photoRepository, StorageService storageService,
-                        StoryAccessService storyAccessService, PlanLimitService planLimitService) {
+                        StoryAccessService storyAccessService, PlanLimitService planLimitService,
+                        UserActivityService activityService) {
         this.photoRepository = photoRepository;
         this.storageService = storageService;
         this.storyAccessService = storyAccessService;
         this.planLimitService = planLimitService;
+        this.activityService = activityService;
     }
 
     public List<Photo> getPhotos(String ownerType, UUID storyId, UUID userId) {
@@ -102,7 +106,10 @@ public class PhotoService {
                     .uploadedBy(userId)
                     .build();
 
-            return photoRepository.save(photo);
+            Photo saved = photoRepository.save(photo);
+            // Bursts of uploads collapse into one entry per story (see ActivityAction.isDeduplicated).
+            activityService.record(userId, ActivityAction.PHOTO_UPLOADED, "STORY", storyId, "Đã tải ảnh lên");
+            return saved;
         } catch (IOException e) {
             throw new RuntimeException("Could not process image", e);
         }
@@ -129,6 +136,7 @@ public class PhotoService {
         storageService.delete(photo.getFilenameStored());
         storageService.delete("thumb_" + photo.getFilenameStored());
         photoRepository.delete(photo);
+        activityService.record(userId, ActivityAction.PHOTO_DELETED, "STORY", storyId, "Đã xóa một ảnh");
     }
 
     @Transactional

@@ -1,6 +1,7 @@
 package com.couplestory.service;
 
 import com.couplestory.dto.CreateEventRequest;
+import com.couplestory.entity.ActivityAction;
 import com.couplestory.entity.Story;
 import com.couplestory.entity.StoryEvent;
 import com.couplestory.exception.ForbiddenOperationException;
@@ -20,13 +21,16 @@ public class StoryEventService {
     private final StoryEventRepository eventRepository;
     private final StoryAccessService storyAccessService;
     private final TemplateAccessService templateAccessService;
+    private final UserActivityService activityService;
 
     public StoryEventService(StoryEventRepository eventRepository,
                              StoryAccessService storyAccessService,
-                             TemplateAccessService templateAccessService) {
+                             TemplateAccessService templateAccessService,
+                             UserActivityService activityService) {
         this.eventRepository = eventRepository;
         this.storyAccessService = storyAccessService;
         this.templateAccessService = templateAccessService;
+        this.activityService = activityService;
     }
 
     public List<StoryEvent> getEventsByStoryId(UUID storyId, UUID userId) {
@@ -54,7 +58,9 @@ public class StoryEventService {
                 .sortOrder(request.getOrder() != null ? request.getOrder() : 0)
                 .isVisible(hasRoom)
                 .build();
-        return eventRepository.save(event);
+        StoryEvent saved = eventRepository.save(event);
+        activityService.record(userId, ActivityAction.EVENT_CREATED, "EVENT", saved.getId(), "Đã thêm kỷ niệm \"" + saved.getTitle() + "\"");
+        return saved;
     }
 
     @Transactional
@@ -73,7 +79,9 @@ public class StoryEventService {
         if (request.getEventDate() != null) event.setEventDate(parseDate(request.getEventDate()));
         if (request.getPhotoId() != null) event.setPhotoId(UUID.fromString(request.getPhotoId()));
         if (request.getOrder() != null) event.setSortOrder(request.getOrder());
-        return eventRepository.save(event);
+        StoryEvent saved = eventRepository.save(event);
+        activityService.record(userId, ActivityAction.EVENT_UPDATED, "EVENT", saved.getId(), "Đã cập nhật kỷ niệm \"" + saved.getTitle() + "\"");
+        return saved;
     }
 
     @Transactional
@@ -81,6 +89,7 @@ public class StoryEventService {
         storyAccessService.requireOwnedStory(storyId, userId);
         StoryEvent event = requireEventInStory(storyId, eventId);
         eventRepository.delete(event);
+        activityService.record(userId, ActivityAction.EVENT_DELETED, "EVENT", eventId, "Đã xóa kỷ niệm \"" + event.getTitle() + "\"");
     }
 
     @Transactional

@@ -10,8 +10,10 @@ import java.util.UUID;
 @Service
 public class DeviceService {
     private final DeviceRepository deviceRepository;
+    private final UserActivityService activityService;
 
-    public DeviceService(DeviceRepository deviceRepository) {
+    public DeviceService(DeviceRepository deviceRepository, UserActivityService activityService) {
+        this.activityService = activityService;
         this.deviceRepository = deviceRepository;
     }
 
@@ -28,6 +30,8 @@ public class DeviceService {
                 .lastSeenAt(OffsetDateTime.now())
                 .build();
         deviceRepository.save(d);
+        activityService.record(userId, com.couplestory.entity.ActivityAction.LOGIN, "USER", userId,
+                "GOOGLE".equals(method) ? "Đăng nhập bằng Google" : "Đăng nhập bằng mật khẩu");
     }
 
     private String parsePlatform(String ua) {
