@@ -80,9 +80,21 @@ public class WebSecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
+            // AuthTokenFilter records why a presented token was refused; anonymous callers have no reason.
+            Object reason = request.getAttribute("auth.reason");
+            String code = "UNAUTHENTICATED";
+            String message = "Authentication required";
+            if ("SESSION_REPLACED".equals(reason)) {
+                code = "SESSION_REPLACED";
+                message = "Tài khoản đã được đăng nhập ở nơi khác.";
+            } else if ("TOKEN_INVALID".equals(reason)) {
+                code = "TOKEN_INVALID";
+                message = "Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.";
+            }
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding("UTF-8");
             response.setStatus(401);
-            response.getWriter().write("{\"status\":401,\"message\":\"Authentication required\"}");
+            response.getWriter().write("{\"status\":401,\"code\":\"" + code + "\",\"message\":\"" + message + "\"}");
         };
     }
 

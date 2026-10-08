@@ -207,7 +207,10 @@ public class AuthController {
                 userRepository.save(user);
             }
 
-            String jwt = jwtUtils.generateTokenFromEmail(user.getEmail());
+            // Same rule as password login: the newest login wins and older sessions are replaced.
+            user.setTokenVersion(user.getTokenVersion() + 1);
+            userRepository.save(user);
+            String jwt = jwtUtils.generateJwtToken(UserDetailsImpl.build(user));
             List<String> roles = user.getRoles().stream()
                     .map(r -> r.getName())
                     .collect(Collectors.toList());

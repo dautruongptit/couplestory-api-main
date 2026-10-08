@@ -31,18 +31,17 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 
-                // Concurrent session control: check token version
+                // Concurrent session control: only the newest login session stays valid
                 Integer tokenVersion = jwtUtils.getTokenVersionFromJwtToken(jwt);
-                boolean validVersion = true;
-                if (tokenVersion != null && userDetails instanceof UserDetailsImpl) {
-                    if (tokenVersion < ((UserDetailsImpl) userDetails).getTokenVersion()) {
-                        validVersion = false;
-                        log.debug("JWT token version {} is older than user's current version {}", 
-                                tokenVersion, ((UserDetailsImpl) userDetails).getTokenVersion());
-                    }
+                SessionPolicy.Result session = userDetails instanceof UserDetailsImpl current
+                        ? SessionPolicy.check(tokenVersion, current.getTokenVersion())
+                        : SessionPolicy.Result.TOKEN_INVALID;
+                if (session != SessionPolicy.Result.VALID) {
+                    request.setAttribute("auth.reason", session.name());
+                    log.debug("JWT rejected: {}", session);
                 }
-                
-                if (validVersion) {
+
+                if (session == SessionPolicy.Result.VALID && userDetails.isAccountNonLocked()) {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
