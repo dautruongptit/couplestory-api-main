@@ -59,9 +59,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-            .body(new ErrorResponse(429, ex.getMessage()));
+    public ResponseEntity<java.util.Map<String, Object>> handleTooManyRequests(TooManyRequestsException ex) {
+        var response = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+        long retry = ex.getRetryAfterSeconds();
+        if (retry > 0) response = response.header("Retry-After", String.valueOf(retry));
+        return response.body(java.util.Map.of(
+            "status", 429, "code", "RATE_LIMITED", "message", ex.getMessage(), "retryAfterSeconds", retry));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
